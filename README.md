@@ -1,6 +1,43 @@
 # Behaviour-Based Adaptive Authentication System
 
-### MFA Fatigue Detection & Risk-Based Access Control — Complete Study Guide
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![FastAPI 0.115+](https://img.shields.io/badge/FastAPI-0.115%2B-green)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Security-First](https://img.shields.io/badge/Security-First-red)](https://owasp.org/)
+
+**MFA Fatigue Detection & Risk-Based Access Control — Complete Study Guide**
+
+> A production-grade FastAPI authentication system that detects MFA fatigue attacks in real time using behaviour analysis, risk scoring, and adaptive access control.
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Chitchula-Sai-Bhuvan/adaptive-authentication-system.git
+cd adaptive-authentication-system
+
+# 2. Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # macOS/Linux
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+cp .env.example .env
+# Edit .env with your database credentials
+
+# 5. Run the app
+.venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 6. Open browser
+# http://localhost:8000 — Login
+# http://localhost:8000/docs — Swagger API
+# http://localhost:8000/redoc — ReDoc API
+```
 
 ---
 

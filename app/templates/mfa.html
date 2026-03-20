@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MFA Challenge — Adaptive Auth</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-950 flex items-center justify-center">
+
+  <div class="w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-xl p-8 text-center">
+
+    <!-- Icon -->
+    <div class="flex justify-center mb-5">
+      <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-full p-4">
+        <svg class="w-10 h-10 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v2m-4 0v2m0-2H8m4 0h4M5 19h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+      </div>
+    </div>
+
+    <span class="inline-block bg-yellow-600/20 text-yellow-400 text-xs font-semibold px-3 py-1
+                 rounded-full mb-3 tracking-widest uppercase border border-yellow-600/30">
+      MFA Challenge
+    </span>
+    <h1 class="text-2xl font-bold text-white mb-2">Approve Access Request</h1>
+    <p class="text-gray-400 text-sm mb-6">
+      A login attempt was detected for your account.<br/>
+      Do you recognise this request?
+    </p>
+
+    <!-- Request details card -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-4 text-left mb-6 text-sm space-y-1.5">
+      <div class="flex justify-between">
+        <span class="text-gray-400">User</span>
+        <span id="displayUser" class="text-white font-medium">—</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-gray-400">Time</span>
+        <span class="text-white" id="requestTime">—</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-gray-400">Browser</span>
+        <span class="text-gray-300 truncate max-w-[200px]" id="browserInfo">—</span>
+      </div>
+    </div>
+
+    <div id="alert" class="hidden mb-4 px-4 py-3 rounded-lg text-sm font-medium"></div>
+
+    <!-- Action buttons -->
+    <div class="flex gap-3">
+      <button onclick="respond(true)"
+        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3
+               rounded-xl transition-colors duration-200 focus:outline-none">
+        Approve
+      </button>
+      <button onclick="respond(false)"
+        class="flex-1 bg-red-700 hover:bg-red-800 text-white font-semibold py-3
+               rounded-xl transition-colors duration-200 focus:outline-none">
+        Deny
+      </button>
+    </div>
+
+    <!-- Risk decision result -->
+    <div id="riskResult" class="hidden mt-6 p-4 rounded-xl border text-sm text-left">
+      <p class="text-gray-400 mb-1 font-medium uppercase tracking-wider text-xs">Risk Evaluation Result</p>
+      <p id="riskText" class="text-white font-semibold text-base mb-1"></p>
+      <p id="riskScore" class="text-gray-300"></p>
+      <a href="/dashboard" class="mt-3 inline-block text-indigo-400 hover:text-indigo-300 text-sm">
+        View full dashboard →
+      </a>
+    </div>
+  </div>
+
+  <script>
+    // Populate metadata from localStorage
+    const userId      = localStorage.getItem('user_id');
+    const username    = localStorage.getItem('username') || 'Unknown';
+    const challengeId = localStorage.getItem('challenge_id');
+    document.getElementById('displayUser').textContent = username;
+    document.getElementById('requestTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('browserInfo').textContent =
+      navigator.userAgent.substring(0, 60) + '...';
+
+    async function respond(approved) {
+      if (!userId || !challengeId) {
+        showAlert('Session expired or missing challenge. Please log in again.', 'error');
+        return;
+      }
+
+      const body = {
+        user_id: parseInt(userId),
+        challenge_id: challengeId,
+        approved: approved,
+        ip_address: '127.0.0.1',
+        device_info: navigator.userAgent.substring(0, 256),
+      };
+
+      try {
+        const res = await fetch('/api/mfa/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          showRiskResult(data);
+        } else {
+          const detail = data.detail;
+          const msg = Array.isArray(detail)
+            ? detail.map(e => e.msg).join('; ')
+            : detail || 'Error processing response.';
+          showAlert(msg, 'error');
+        }
+      } catch (err) {
+        showAlert('Network error.', 'error');
+      }
+    }
+
+    function showRiskResult(data) {
+      const resultEl  = document.getElementById('riskResult');
+      const textEl    = document.getElementById('riskText');
+      const scoreEl   = document.getElementById('riskScore');
+
+      const decision = data.risk_decision;
+      const colors = {
+        ALLOW:  'border-emerald-600 bg-emerald-900/20',
+        VERIFY: 'border-yellow-500 bg-yellow-900/20',
+        BLOCK:  'border-red-600 bg-red-900/20',
+      };
+      const labels = {
+        ALLOW:  '✓ Access Allowed',
+        VERIFY: '⚠ Step-Up Verification Required',
+        BLOCK:  '✗ Access Blocked',
+      };
+
+      resultEl.className = `mt-6 p-4 rounded-xl border text-sm text-left ${colors[decision] || 'border-gray-600'}`;
+      textEl.textContent  = labels[decision] || decision;
+      scoreEl.textContent = `MFA Response: ${data.event_type} | Decision: ${decision}`;
+      resultEl.classList.remove('hidden');
+    }
+
+    function showAlert(msg, type) {
+      const el = document.getElementById('alert');
+      el.textContent = msg;
+      el.className = `mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
+        type === 'success'
+          ? 'bg-green-900 border border-green-600 text-green-300'
+          : 'bg-red-900 border border-red-600 text-red-300'
+      }`;
+    }
+  </script>
+</body>
+</html>

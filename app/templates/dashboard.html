@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Security Dashboard — Adaptive Auth v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="min-h-screen bg-gray-950 text-white font-mono">
+
+<!-- ── NavBar ──────────────────────────────────────────────────── -->
+<nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+  <div class="flex items-center gap-3">
+    <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+    <span class="text-indigo-400 font-bold tracking-wider">ADAPTIVE AUTH</span>
+    <span class="text-gray-600">|</span>
+    <span class="text-gray-400 text-xs uppercase tracking-widest">Security Dashboard v2</span>
+  </div>
+  <div class="flex items-center gap-4">
+    <span class="text-gray-500 text-xs">USER: <span id="navUser" class="text-white">—</span></span>
+    <button onclick="runEvaluation()"
+      class="bg-indigo-600 hover:bg-indigo-500 text-xs font-bold px-3 py-1.5 rounded tracking-wider transition-colors">
+      EVALUATE RISK
+    </button>
+    <button onclick="verifyAuditChain()"
+      class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded tracking-wider transition-colors">
+      VERIFY CHAIN
+    </button>
+    <button onclick="logout()"
+      class="text-gray-500 hover:text-red-400 text-xs transition-colors">
+      LOGOUT
+    </button>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+  <!-- ── Status bar ──────────────────────────────────────────── -->
+  <div id="statusBar" class="hidden bg-gray-900 border border-gray-700 rounded-lg px-4 py-2
+       text-xs flex items-center gap-2">
+    <span id="statusIcon">i</span>
+    <span id="statusMsg"></span>
+  </div>
+
+  <!-- ── RISK SCORE + SIGNALS + CHAIN ────────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-5 flex flex-col items-center justify-center gap-3">
+      <p class="text-gray-500 text-xs uppercase tracking-widest">Risk Score</p>
+      <div id="scoreBadge"
+        class="w-28 h-28 rounded-full border-4 border-gray-600 flex items-center justify-center">
+        <span id="scoreValue" class="text-4xl font-black text-gray-400">--</span>
+      </div>
+      <div id="decisionBadge"
+        class="px-4 py-1 rounded-full text-xs font-bold tracking-widest bg-gray-700 text-gray-300">
+        NOT EVALUATED
+      </div>
+      <p id="evalTime" class="text-gray-600 text-xs">--</p>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-5">
+      <p class="text-gray-500 text-xs uppercase tracking-widest mb-3">Active Signals</p>
+      <div id="signalsList">
+        <p class="text-gray-600 text-xs">Run evaluation to see signals.</p>
+      </div>
+    </div>
+
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-5">
+      <p class="text-gray-500 text-xs uppercase tracking-widest mb-3">Audit Chain Integrity</p>
+      <div id="chainStatus">
+        <p class="text-gray-600 text-xs">Click VERIFY CHAIN to check.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── THRESHOLDS ──────────────────────────────────────────── -->
+  <div class="grid grid-cols-3 gap-3">
+    <div class="bg-emerald-900/20 border border-emerald-700/40 rounded-lg p-3 text-center">
+      <p class="text-emerald-400 font-black text-xl">0-39</p>
+      <p class="text-emerald-300 text-xs font-bold tracking-widest mt-0.5">ALLOW</p>
+    </div>
+    <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg p-3 text-center">
+      <p class="text-yellow-400 font-black text-xl">40-69</p>
+      <p class="text-yellow-300 text-xs font-bold tracking-widest mt-0.5">VERIFY</p>
+    </div>
+    <div class="bg-red-900/20 border border-red-700/40 rounded-lg p-3 text-center">
+      <p class="text-red-400 font-black text-xl">70+</p>
+      <p class="text-red-300 text-xs font-bold tracking-widest mt-0.5">BLOCK</p>
+    </div>
+  </div>
+
+  <!-- ── CHARTS ─────────────────────────────────────────────── -->
+  <div class="bg-gray-900 border border-gray-700 rounded-xl p-5">
+    <div class="flex items-center justify-between mb-4">
+      <p class="text-gray-300 text-sm font-bold tracking-wider">Risk Score Timeline</p>
+      <span class="text-gray-600 text-xs">Last 20 evaluations</span>
+    </div>
+    <div class="h-48"><canvas id="riskChart"></canvas></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-5">
+      <p class="text-gray-300 text-sm font-bold tracking-wider mb-4">Signal Frequency</p>
+      <div class="h-40"><canvas id="signalChart"></canvas></div>
+    </div>
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-5">
+      <p class="text-gray-300 text-sm font-bold tracking-wider mb-3">
+        Attack Detection Log
+        <span id="attackCount" class="ml-2 text-xs bg-red-900/40 text-red-300 px-2 py-0.5 rounded-full">0</span>
+      </p>
+      <div id="attackLog" class="space-y-1.5 max-h-40 overflow-y-auto text-xs">
+        <p class="text-gray-600">No attacks detected.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EVENTS TABLE ───────────────────────────────────────── -->
+  <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <p class="text-gray-300 text-sm font-bold tracking-wider">Authentication Events</p>
+      <button onclick="loadAll()" class="text-xs text-indigo-400 hover:text-indigo-300">Refresh</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-gray-800 text-gray-500 uppercase tracking-widest">
+          <tr>
+            <th class="px-4 py-2 text-left">Event</th>
+            <th class="px-4 py-2 text-left">IP</th>
+            <th class="px-4 py-2 text-left">Device (truncated)</th>
+            <th class="px-4 py-2 text-left">Session</th>
+            <th class="px-4 py-2 text-left">Result</th>
+            <th class="px-4 py-2 text-left">Time</th>
+          </tr>
+        </thead>
+        <tbody id="eventsBody" class="divide-y divide-gray-800/60">
+          <tr><td colspan="6" class="px-4 py-6 text-center text-gray-600">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── DECISIONS TABLE ──────────────────────────────────────── -->
+  <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-800">
+      <p class="text-gray-300 text-sm font-bold tracking-wider">Risk Decision History</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-gray-800 text-gray-500 uppercase tracking-widest">
+          <tr>
+            <th class="px-4 py-2 text-left">Score</th>
+            <th class="px-4 py-2 text-left">Decision</th>
+            <th class="px-4 py-2 text-left">Reason</th>
+            <th class="px-4 py-2 text-left">Time</th>
+          </tr>
+        </thead>
+        <tbody id="decisionsBody" class="divide-y divide-gray-800/60">
+          <tr><td colspan="4" class="px-4 py-6 text-center text-gray-600">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const userId   = localStorage.getItem('user_id');
+  const username = localStorage.getItem('username') || '--';
+  document.getElementById('navUser').textContent = username;
+
+  const DC = {
+    ALLOW:  { badge:'bg-emerald-800/50 text-emerald-300', ring:'border-emerald-500', row:'text-emerald-400' },
+    VERIFY: { badge:'bg-yellow-800/50 text-yellow-300',   ring:'border-yellow-500',  row:'text-yellow-400' },
+    BLOCK:  { badge:'bg-red-800/50 text-red-300',         ring:'border-red-500',     row:'text-red-400' },
+  };
+  const EC = {
+    LOGIN:'bg-blue-900/40 text-blue-300', MFA_REQUEST:'bg-yellow-900/40 text-yellow-300',
+    APPROVE:'bg-emerald-900/40 text-emerald-300', DENY:'bg-red-900/40 text-red-300',
+    LOGOUT:'bg-gray-700 text-gray-400', TOKEN_REVOKE:'bg-purple-900/40 text-purple-300',
+    LOCKOUT:'bg-red-900 text-red-200',
+  };
+  const WEIGHTS = {
+    excess_mfa_requests:30,rapid_login_attempts:20,repeated_approvals:25,
+    new_device_detected:20,ip_change_detected:15,impossible_travel:40,off_hours_access:10
+  };
+  const SIGIDX = {
+    excess_mfa_requests:0,rapid_login_attempts:1,repeated_approvals:2,
+    new_device_detected:3,ip_change_detected:4,impossible_travel:5,off_hours_access:6
+  };
+
+  // ── Charts ─────────────────────────────────────────────────────────
+  const base = { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:'#9ca3af', font:{family:'monospace',size:10} } } } };
+
+  const riskChart = new Chart(document.getElementById('riskChart'), {
+    type:'line',
+    data:{ labels:[], datasets:[{
+      label:'Risk Score', data:[], borderColor:'#6366f1',
+      backgroundColor:'rgba(99,102,241,0.08)', tension:0.3, fill:true, pointRadius:4,
+    }]},
+    options:{ ...base,
+      scales:{
+        x:{ ticks:{color:'#374151',font:{size:9}}, grid:{color:'#1f2937'} },
+        y:{ min:0, max:160, ticks:{color:'#374151',font:{size:9}}, grid:{color:'#1f2937'} },
+      },
+    },
+  });
+
+  const signalChart = new Chart(document.getElementById('signalChart'), {
+    type:'bar',
+    data:{
+      labels:['excess_mfa','rapid_login','rep_approvals','new_device','ip_change','impos_travel','off_hours'],
+      datasets:[{
+        label:'Times triggered',
+        data:[0,0,0,0,0,0,0],
+        backgroundColor:['#ef4444','#f97316','#eab308','#3b82f6','#8b5cf6','#dc2626','#6b7280'],
+        borderRadius:3,
+      }],
+    },
+    options:{ ...base,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ ticks:{color:'#374151',font:{size:8},maxRotation:30}, grid:{display:false} },
+        y:{ ticks:{color:'#374151',font:{size:9},stepSize:1}, grid:{color:'#1f2937'} },
+      },
+    },
+  });
+
+  let attacks = [];
+
+  // ── Risk evaluation ─────────────────────────────────────────────────
+  async function runEvaluation() {
+    if (!userId) { showStatus('No session — please log in.','error'); return; }
+    const res = await fetch(`/api/risk/evaluate?user_id=${userId}`);
+    const d   = await res.json();
+    if (!res.ok) { showStatus(d.detail||'Error','error'); return; }
+
+    const c = DC[d.decision] || DC.ALLOW;
+    document.getElementById('scoreValue').textContent = d.risk_score;
+    document.getElementById('scoreBadge').className =
+      `w-28 h-28 rounded-full border-4 flex items-center justify-center ${c.ring}`;
+    document.getElementById('decisionBadge').textContent = d.decision;
+    document.getElementById('decisionBadge').className =
+      `px-4 py-1 rounded-full text-xs font-bold tracking-widest ${c.badge}`;
+    document.getElementById('evalTime').textContent =
+      'At ' + new Date().toLocaleTimeString();
+
+    const sl = document.getElementById('signalsList');
+    sl.innerHTML = d.triggered_signals.length
+      ? d.triggered_signals.map(s =>
+          `<div class="flex items-center gap-2 text-xs mb-1">
+             <span class="w-2 h-2 rounded-full bg-red-500"></span>
+             <span class="text-red-300">${s.replaceAll('_',' ')}</span>
+             <span class="text-gray-600">+${WEIGHTS[s]||0}</span>
+           </div>`).join('')
+      : '<p class="text-emerald-600 text-xs">No anomalous signals.</p>';
+
+    // Timeline
+    const t = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    riskChart.data.labels.push(t);
+    riskChart.data.datasets[0].data.push(d.risk_score);
+    riskChart.data.datasets[0].pointBackgroundColor =
+      riskChart.data.datasets[0].data.map(v => v>=70?'#ef4444':v>=40?'#eab308':'#10b981');
+    if (riskChart.data.labels.length > 20) {
+      riskChart.data.labels.shift(); riskChart.data.datasets[0].data.shift();
+    }
+    riskChart.update();
+
+    // Signal freq
+    d.triggered_signals.forEach(s => {
+      const i = SIGIDX[s];
+      if (i !== undefined) signalChart.data.datasets[0].data[i]++;
+    });
+    signalChart.update();
+
+    // Attack log
+    if (['VERIFY','BLOCK'].includes(d.decision)) {
+      attacks.unshift({
+        time: new Date().toLocaleTimeString(),
+        decision: d.decision, score: d.risk_score,
+        signals: d.triggered_signals.join(', '),
+      });
+      const al = document.getElementById('attackLog');
+      document.getElementById('attackCount').textContent = attacks.length;
+      al.innerHTML = attacks.slice(0,15).map(a =>
+        `<div class="flex gap-2 p-1.5 rounded ${a.decision==='BLOCK'?'bg-red-900/20':'bg-yellow-900/20'}">
+           <span class="font-bold ${a.decision==='BLOCK'?'text-red-400':'text-yellow-400'}">[${a.decision}]</span>
+           <span class="text-gray-400">${a.time}</span>
+           <span class="text-white">score=${a.score}</span>
+           <span class="text-gray-500 truncate">${a.signals}</span>
+         </div>`).join('');
+    }
+
+    await loadAll();
+  }
+
+  // ── Audit chain ─────────────────────────────────────────────────────
+  async function verifyAuditChain() {
+    if (!userId) return;
+    const res = await fetch(`/api/risk/audit?user_id=${userId}`);
+    const d   = await res.json();
+    const el  = document.getElementById('chainStatus');
+    el.innerHTML = d.valid
+      ? `<div class="text-emerald-400 font-bold text-sm">✓ CHAIN INTACT</div>
+         <p class="text-gray-500 text-xs mt-1">${d.events_checked} events verified.</p>`
+      : `<div class="text-red-400 font-bold text-sm">✗ CHAIN BROKEN</div>
+         <p class="text-red-300 text-xs mt-1">Tampered at event_id=${d.broken_at_event_id}</p>
+         <p class="text-gray-500 text-xs">${d.events_checked} events checked.</p>`;
+  }
+
+  // ── Load tables ──────────────────────────────────────────────────────
+  async function loadAll() {
+    if (!userId) return;
+    const [evRes, decRes] = await Promise.all([
+      fetch(`/api/logs/events?user_id=${userId}&limit=25`),
+      fetch(`/api/logs/decisions?user_id=${userId}&limit=25`),
+    ]);
+    const evs  = await evRes.json();
+    const decs = await decRes.json();
+
+    const eb = document.getElementById('eventsBody');
+    eb.innerHTML = evs.length ? evs.map(ev =>`
+      <tr class="hover:bg-gray-800/30 transition-colors">
+        <td class="px-4 py-2">
+          <span class="px-2 py-0.5 rounded-full ${EC[ev.event_type]||'bg-gray-700 text-gray-400'}">${ev.event_type}</span>
+        </td>
+        <td class="px-4 py-2 text-gray-400">${ev.ip_address}</td>
+        <td class="px-4 py-2 text-gray-600 max-w-xs truncate">${(ev.device_info||'--').substring(0,35)}</td>
+        <td class="px-4 py-2 text-gray-600">${(ev.session_id||'--').substring(0,8)}...</td>
+        <td class="px-4 py-2"><span class="${ev.success?'text-emerald-500':'text-red-500'}">${ev.success?'OK':'FAIL'}</span></td>
+        <td class="px-4 py-2 text-gray-600">${new Date(ev.timestamp).toLocaleTimeString()}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" class="px-4 py-6 text-center text-gray-600">No events yet.</td></tr>';
+
+    const db = document.getElementById('decisionsBody');
+    db.innerHTML = decs.length ? decs.map(d => {
+      const c = DC[d.decision] || {};
+      return `<tr class="hover:bg-gray-800/30 transition-colors">
+        <td class="px-4 py-2 font-black text-lg ${c.row||'text-gray-300'}">${d.risk_score}</td>
+        <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full font-bold ${c.badge||'bg-gray-700 text-gray-400'}">${d.decision}</span></td>
+        <td class="px-4 py-2 text-gray-500 max-w-xs truncate">${d.reason}</td>
+        <td class="px-4 py-2 text-gray-600">${new Date(d.timestamp).toLocaleString()}</td>
+      </tr>`;}).join('')
+      : '<tr><td colspan="4" class="px-4 py-6 text-center text-gray-600">No decisions yet.</td></tr>';
+  }
+
+  function showStatus(msg, type='info') {
+    const bar = document.getElementById('statusBar');
+    const col = {info:'text-gray-400',error:'text-red-400',ok:'text-emerald-400'}[type];
+    document.getElementById('statusMsg').textContent = msg;
+    bar.className = `bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-xs flex items-center gap-2 ${col}`;
+    setTimeout(() => bar.classList.add('hidden'), 4000);
+  }
+
+  function logout() { localStorage.clear(); window.location.href = '/'; }
+
+  loadAll();
+</script>
+</body>
+</html>

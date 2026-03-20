@@ -39,6 +39,29 @@ cp .env.example .env
 # http://localhost:8000/redoc — ReDoc API
 ```
 
+### Or with Docker Compose (Recommended for Dev/Test)
+
+```bash
+# Clone and navigate to the project
+git clone https://github.com/Chitchula-Sai-Bhuvan/adaptive-authentication-system.git
+cd adaptive-authentication-system
+
+# Start all services (app, MySQL, Redis, phpMyAdmin, Redis Commander)
+docker-compose up -d
+
+# The app will be available at:
+# - API:            http://localhost:8000
+# - Swagger Docs:   http://localhost:8000/docs
+# - phpMyAdmin:     http://localhost:8080 (user: auth_user, password: auth_password)
+# - Redis Commander: http://localhost:8081
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f app
+```
+
 ---
 
 ## Table of Contents
